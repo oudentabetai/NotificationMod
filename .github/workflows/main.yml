@@ -5,7 +5,7 @@ on:
     tags:
       - 'v*'
 
-# create-release / upload-release-asset に必要
+# Release 作成/更新 & asset アップロードに必要
 permissions:
   contents: write
 
@@ -29,7 +29,7 @@ jobs:
       run: |
         set -euo pipefail
 
-        # workflow_dispatch だと refs/heads/<branch> になりやすいので分岐
+        # タグ実行なら v を外した値、そうでなければ短いSHA
         if [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
           version="${GITHUB_REF#refs/tags/v}"
         else
@@ -37,7 +37,7 @@ jobs:
         fi
         echo "version=$version" >> "$GITHUB_OUTPUT"
 
-        # build.gradle の謎マーカーではなく gradle.properties を参照する
+        # gradle.properties から minecraft_version を取得
         minecraft_version=$(perl -ne 'if (/^\s*minecraft_version\s*=\s*([0-9.]+)\s*$/) { print $1; exit }' gradle.properties)
         if [[ -z "${minecraft_version:-}" ]]; then
           echo "minecraft_version not found in gradle.properties" >&2
@@ -53,21 +53,13 @@ jobs:
     - name: 'List build artifacts'
       run: ls -la build/libs
 
-    - id: create_release
-      uses: actions/create-release@v1
+    - name: 'Release (create or update) and upload asset'
+      uses: softprops/action-gh-release@v2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ github.ref_name }}
-        release_name: ${{ github.ref_name }} - ${{ steps.get-variables.outputs.minecraft_version }}
-        draft: false
-        #prerelease: true
-
-    - uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: build/libs/NotificationMod-${{ steps.get-variables.outputs.minecraft_version }}-${{ steps.get-variables.outputs.version }}.jar
-        asset_name: NotificationBot-${{ steps.get-variables.outputs.minecraft_version }}-${{ steps.get-variables.outputs.version }}.jar
-        asset_content_type: application/java-archive
+        name: ${{ github.ref_name }} - ${{ steps.get-variables.outputs.minecraft_version }}
+        files: |
+          build/libs/NotificationMod-${{ steps.get-variables.outputs.minecraft_version }}-${{ steps.get-variables.outputs.version }}.jar
+        fail_on_unmatched_files: true
