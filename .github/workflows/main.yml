@@ -3,37 +3,56 @@ name: Release
 on:
   workflow_dispatch:
 
+# create-release / upload-release-asset に必要
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
 
-    - uses: actions/setup-java@v2
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-java@v4
       with:
         java-version: '8'
-        distribution: 'adopt'
-
-    - uses: actions/checkout@v2
+        distribution: 'temurin'
 
     - run: git log -n 1
 
     - name: 'Get variables'
       id: get-variables
+      shell: bash
       run: |
-        version=$(echo ${{ github.ref }} | perl -lpE 's|^refs\/tags\/v||')
-        echo "$version"
+        set -euo pipefail
+
+        # workflow_dispatch だと refs/heads/<branch> になりやすいので分岐
+        if [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
+          version="${GITHUB_REF#refs/tags/v}"
+        else
+          version="${GITHUB_SHA::7}"
+        fi
         echo "version=$version" >> "$GITHUB_OUTPUT"
-        minecraft_version=$(cat build.gradle | perl -E 'join("", <>) =~ /!!gitHubAction-minecraftVersion="([^"]*)"/ ? say $1 : exit 1') || exit
-        echo "$minecraft_version"
+
+        # build.gradle の謎マーカーではなく gradle.properties を参照する
+        minecraft_version=$(perl -ne 'if (/^\s*minecraft_version\s*=\s*([0-9.]+)\s*$/) { print $1; exit }' gradle.properties)
+        if [[ -z "${minecraft_version:-}" ]]; then
+          echo "minecraft_version not found in gradle.properties" >&2
+          exit 1
+        fi
         echo "minecraft_version=$minecraft_version" >> "$GITHUB_OUTPUT"
+
+        echo "Resolved version=$version, minecraft_version=$minecraft_version"
 
     - name: 'Build'
       run: bash gradlew build
 
-    - run: ls build/libs
+    - name: 'List build artifacts'
+      run: ls -la build/libs
 
     - id: create_release
-      uses: actions/create-release@v1.0.0
+      uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
@@ -42,7 +61,7 @@ jobs:
         draft: false
         #prerelease: true
 
-    - uses: actions/upload-release-asset@v1.0.1
+    - uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
