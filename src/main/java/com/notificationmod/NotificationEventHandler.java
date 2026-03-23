@@ -2,6 +2,7 @@ package com.notificationmod;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.network.NetworkPlayerInfo;
+import net.minecraft.util.text.ChatType;
 import net.minecraftforge.client.event.ClientChatReceivedEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
@@ -60,7 +61,7 @@ public class NotificationEventHandler {
     @SubscribeEvent
     public void onClientChatReceived(ClientChatReceivedEvent event) {
         // Skip action-bar messages (type 2) – they are not real chat.
-        if (event.getType() == 2) {
+        if (event.getType() == ChatType.GAME_INFO) {
             return;
         }
         String message = event.getMessage().getUnformattedText();
