@@ -20,12 +20,13 @@ jobs:
     - name: 'Get variables'
       id: get-variables
       run: |
-        version=$(echo ${{ github.ref }} | perl -lpE 's|^refs/tags/v||')
+        version=$(echo ${{ github.ref }} | perl -lpE 's|^refs\/tags\/v||')
         echo "$version"
-        echo "::set-output name=version::$version"
+        echo "version=$version" >> "$GITHUB_OUTPUT"
         minecraft_version=$(cat build.gradle | perl -E 'join("", <>) =~ /!!gitHubAction-minecraftVersion="([^"]*)"/ ? say $1 : exit 1') || exit
         echo "$minecraft_version"
-        echo "::set-output name=minecraft_version::$minecraft_version"
+        echo "minecraft_version=$minecraft_version" >> "$GITHUB_OUTPUT"
+
     - name: 'Build'
       run: bash gradlew build
 
