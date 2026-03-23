@@ -14,8 +14,7 @@ import org.apache.logging.log4j.Logger;
  * Sends Windows balloon notifications for:
  * <ul>
  *   <li>Other players joining or leaving the server.</li>
- *   <li>Chat messages received in-game.</li>
- *   <li>Your own connection to / disconnection from a server.</li>
+ *   <li>Player chat messages received in-game.</li>
  * </ul>
  */
 @Mod(modid = NotificationMod.MOD_ID, name = NotificationMod.MOD_NAME, version = NotificationMod.VERSION,

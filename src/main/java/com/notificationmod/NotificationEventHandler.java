@@ -16,7 +16,6 @@ import java.util.Set;
  * <ul>
  *   <li>Other players joining or leaving the server (checked once per second via the client tick).</li>
  *   <li>Player chat messages received in-game.</li>
- *   <li>Your own connection to / disconnection from a server.</li>
  * </ul>
  */
 public class NotificationEventHandler {
@@ -42,26 +41,23 @@ public class NotificationEventHandler {
         currentPlayers.clear();
         tickCounter = 0;
         firstCheck = true;
-        WindowsNotification.sendNotification(NotificationMod.MOD_NAME, "Connected to server");
     }
 
     @SubscribeEvent
     public void onClientDisconnected(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
         currentPlayers.clear();
         firstCheck = true;
-        WindowsNotification.sendNotification(NotificationMod.MOD_NAME, "Disconnected from server");
     }
 
     // -------------------------------------------------------------------------
     // Chat event  (type 0 = regular player chat; type 1 = system; type 2 = action bar)
-    // We notify for both type-0 and type-1 so that vanilla join/leave messages
-    // that arrive via the chat channel are not silently dropped.
+    // Only notify for type-0 player chat messages.
     // -------------------------------------------------------------------------
 
     @SubscribeEvent
     public void onClientChatReceived(ClientChatReceivedEvent event) {
-        // Skip action-bar messages (type 2) – they are not real chat.
-        if (event.getType() == ChatType.GAME_INFO) {
+        // Only notify for player chat messages (type 0); skip system and action-bar messages.
+        if (event.getType() != ChatType.CHAT) {
             return;
         }
         String message = event.getMessage().getUnformattedText();
