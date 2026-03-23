@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+
+    - uses: actions/setup-java@v2
+      with:
+        java-version: '8'
+        distribution: 'adopt'
+
+    - uses: actions/checkout@v2
+
+    - run: git log -n 1
+
+    - name: 'Get variables'
+      id: get-variables
+      run: |
+        version=$(echo ${{ github.ref }} | perl -lpE 's|^refs\/tags\/v||')
+        echo "$version"
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+        minecraft_version=$(cat build.gradle | perl -E 'join("", <>) =~ /!!gitHubAction-minecraftVersion="([^"]*)"/ ? say $1 : exit 1') || exit
+        echo "$minecraft_version"
+        echo "minecraft_version=$minecraft_version" >> "$GITHUB_OUTPUT"
+
+    - name: 'Build'
+      run: bash gradlew build
+
+    - run: ls build/libs
+
+    - id: create_release
+      uses: actions/create-release@v1.0.0
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: ${{ github.ref }} - ${{ steps.get-variables.outputs.minecraft_version }}
+        draft: false
+        #prerelease: true
+
+    - uses: actions/upload-release-asset@v1.0.1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: build/libs/NotificationMod-${{ steps.get-variables.outputs.minecraft_version }}-${{ steps.get-variables.outputs.version }}.jar
+        asset_name: NotificationBot-${{ steps.get-variables.outputs.minecraft_version }}-${{ steps.get-variables.outputs.version }}.jar
+        asset_content_type: application/java-archive
