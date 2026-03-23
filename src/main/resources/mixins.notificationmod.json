@@ -1,0 +1,8 @@
+{
+    "compatibilityLevel": "JAVA_8",
+    "package": "com.notificationmod.mixin",
+    "refmap": "refmap.notificationmod.json",
+    "mixins": [],
+    "client": [],
+    "server": []
+}
