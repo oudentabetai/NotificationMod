@@ -4,6 +4,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.network.NetworkPlayerInfo;
 import net.minecraft.util.text.ChatType;
 import net.minecraftforge.client.event.ClientChatReceivedEvent;
+import net.minecraftforge.fml.client.event.ConfigChangedEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 import net.minecraftforge.fml.common.network.FMLNetworkEvent;
@@ -16,11 +17,13 @@ import java.util.Set;
  * <ul>
  *   <li>Other players joining or leaving the server (checked once per second via the client tick).</li>
  *   <li>Player chat messages received in-game.</li>
+ *   <li>Player taking damage (checked once per second via the client tick).</li>
+ *   <li>Player death.</li>
  * </ul>
  */
 public class NotificationEventHandler {
 
-    /** How many client ticks to wait between player-list comparisons (20 ticks = 1 second). */
+    /** How many client ticks to wait between player-list and health comparisons (20 ticks = 1 second). */
     private static final int CHECK_INTERVAL = 20;
 
     private final Set<String> currentPlayers = new HashSet<>();
@@ -32,6 +35,12 @@ public class NotificationEventHandler {
      */
     private boolean firstCheck = true;
 
+    /**
+     * The local player's health as of the last CHECK_INTERVAL tick.
+     * Initialised to {@code -1} to indicate "not yet recorded".
+     */
+    private float lastHealth = -1.0f;
+
     // -------------------------------------------------------------------------
     // Connection events
     // -------------------------------------------------------------------------
@@ -41,12 +50,14 @@ public class NotificationEventHandler {
         currentPlayers.clear();
         tickCounter = 0;
         firstCheck = true;
+        lastHealth = -1.0f;
     }
 
     @SubscribeEvent
     public void onClientDisconnected(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
         currentPlayers.clear();
         firstCheck = true;
+        lastHealth = -1.0f;
     }
 
     // -------------------------------------------------------------------------
@@ -67,7 +78,18 @@ public class NotificationEventHandler {
     }
 
     // -------------------------------------------------------------------------
-    // Per-tick player-list comparison for other-player join/leave detection
+    // In-game config GUI saved
+    // -------------------------------------------------------------------------
+
+    @SubscribeEvent
+    public void onConfigChanged(ConfigChangedEvent.OnConfigChangedEvent event) {
+        if (NotificationMod.MOD_ID.equals(event.getModID())) {
+            NotificationConfig.syncFromConfig();
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Per-tick player-list comparison and health tracking
     // -------------------------------------------------------------------------
 
     @SubscribeEvent
@@ -86,10 +108,39 @@ public class NotificationEventHandler {
         if (mc.getConnection() == null) {
             currentPlayers.clear();
             firstCheck = true;
+            lastHealth = -1.0f;
             return;
         }
 
-        // Build the current snapshot of players in the server.
+        // ---- Health / damage / death tracking ----
+        if (mc.player != null) {
+            float health = mc.player.getHealth();
+            if (lastHealth < 0) {
+                // First reading after connecting – establish baseline.
+                lastHealth = health;
+            } else if (health <= 0 && lastHealth > 0) {
+                // Transition from alive to dead.
+                if (shouldNotify(NotificationConfig.deathNotificationMode)) {
+                    WindowsNotification.sendNotification("You Died!", mc.getSession().getUsername() + " has died.");
+                }
+                NotificationMod.LOGGER.info("Local player died.");
+                lastHealth = health;
+            } else if (health < lastHealth) {
+                // Health decreased – player took damage.
+                if (shouldNotify(NotificationConfig.damageNotificationMode)) {
+                    WindowsNotification.sendNotification("Damage Taken",
+                            String.format("HP: %.1f \u2192 %.1f", lastHealth, health));
+                }
+                lastHealth = health;
+            } else {
+                // Health unchanged or increased (regeneration / respawn).
+                // Updating lastHealth here ensures subsequent damage/death events are
+                // detected correctly, including deaths after a respawn.
+                lastHealth = health;
+            }
+        }
+
+        // ---- Player join/leave tracking ----
         Set<String> newPlayers = new HashSet<>();
         for (NetworkPlayerInfo info : mc.getConnection().getPlayerInfoMap()) {
             newPlayers.add(info.getGameProfile().getName());

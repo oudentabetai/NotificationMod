@@ -15,7 +15,10 @@ import org.apache.logging.log4j.Logger;
  * <ul>
  *   <li>Other players joining or leaving the server.</li>
  *   <li>Player chat messages received in-game.</li>
+ *   <li>The local player taking damage.</li>
+ *   <li>The local player dying.</li>
  * </ul>
+ * All notification types can be configured through the in-game Mod Options screen.
  */
 @Mod(modid = NotificationMod.MOD_ID, name = NotificationMod.MOD_NAME, version = NotificationMod.VERSION,
         clientSideOnly = true, acceptedMinecraftVersions = "[1.12.2]")
