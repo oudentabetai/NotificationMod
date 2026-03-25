@@ -60,8 +60,10 @@ public class NotificationEventHandler {
         if (event.getType() != ChatType.CHAT) {
             return;
         }
-        String message = event.getMessage().getUnformattedText();
-        WindowsNotification.sendNotification("Minecraft Chat", message);
+        if (shouldNotify(NotificationConfig.messageNotificationMode)) {
+            String message = event.getMessage().getUnformattedText();
+            WindowsNotification.sendNotification("Minecraft Chat", message);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -105,7 +107,9 @@ public class NotificationEventHandler {
         // Detect players who just joined.
         for (String player : newPlayers) {
             if (!currentPlayers.contains(player) && !player.equals(ownName)) {
-                WindowsNotification.sendNotification("Player Joined", player + " joined the server");
+                if (shouldNotify(NotificationConfig.joinNotificationMode)) {
+                    WindowsNotification.sendNotification("Player Joined", player + " joined the server");
+                }
                 NotificationMod.LOGGER.info("Player joined: {}", player);
             }
         }
@@ -113,12 +117,24 @@ public class NotificationEventHandler {
         // Detect players who just left.
         for (String player : currentPlayers) {
             if (!newPlayers.contains(player) && !player.equals(ownName)) {
-                WindowsNotification.sendNotification("Player Left", player + " left the server");
+                if (shouldNotify(NotificationConfig.joinNotificationMode)) {
+                    WindowsNotification.sendNotification("Player Left", player + " left the server");
+                }
                 NotificationMod.LOGGER.info("Player left: {}", player);
             }
         }
 
         currentPlayers.clear();
         currentPlayers.addAll(newPlayers);
+    }
+
+    /**
+     * Returns {@code true} if a notification with the given mode should be sent now.
+     * When the mode is {@link NotificationConfig.NotificationMode#ALWAYS}, always returns {@code true}.
+     * When the mode is {@link NotificationConfig.NotificationMode#BACKGROUND_ONLY}, returns {@code true}
+     * only when the Minecraft window is not currently focused.
+     */
+    private static boolean shouldNotify(NotificationConfig.NotificationMode mode) {
+        return mode == NotificationConfig.NotificationMode.ALWAYS || WindowsNotification.isWindowInBackground();
     }
 }
