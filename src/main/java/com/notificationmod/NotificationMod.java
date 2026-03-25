@@ -29,6 +29,7 @@ public class NotificationMod {
 
     @Mod.EventHandler
     public void onPreInit(FMLPreInitializationEvent event) {
+        NotificationConfig.load(event.getSuggestedConfigurationFile());
         WindowsNotification.init();
     }
 

@@ -69,6 +69,21 @@ public final class WindowsNotification {
         }
     }
 
+    /**
+     * Returns {@code true} when the Minecraft window is not the active (focused) window.
+     * Uses LWJGL's {@code Display.isActive()} which is available in Minecraft 1.12.2.
+     *
+     * @return {@code true} if the window is in the background, {@code false} if it has focus
+     *         or if focus state cannot be determined.
+     */
+    public static boolean isWindowInBackground() {
+        try {
+            return !org.lwjgl.opengl.Display.isActive();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     /** Creates a simple 16×16 green square icon used in the system tray. */
     private static Image createIcon() {
         BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
