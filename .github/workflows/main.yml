@@ -1,35 +1,52 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  pull_request:
+    types:
+      - closed
 
 permissions:
   contents: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   build:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-java@v4
         with:
           java-version: '8'
           distribution: 'temurin'
 
-      - run: git log -n 1
-
-      - name: Get variables
+      - name: Get variables and bump version
         id: get-variables
         shell: bash
         run: |
           set -euo pipefail
 
-          # tag vX.Y.Z -> version=X.Y.Z
-          version="${GITHUB_REF#refs/tags/v}"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          current_version=$(perl -ne 'if (/^\s*mod_version\s*=\s*([0-9.]+)\s*$/) { print $1; exit }' gradle.properties)
+          if [[ -z "${current_version:-}" ]]; then
+            echo "mod_version not found in gradle.properties" >&2
+            exit 1
+          fi
+
+          # bump patch version: X.Y.Z -> X.Y.(Z+1)
+          IFS='.' read -r major minor patch <<< "$current_version"
+          if [[ -z "${major:-}" || -z "${minor:-}" || -z "${patch:-}" ]]; then
+            echo "mod_version must be in X.Y.Z format, got: $current_version" >&2
+            exit 1
+          fi
+          new_version="${major}.${minor}.$((patch + 1))"
+          echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
 
           minecraft_version=$(perl -ne 'if (/^\s*minecraft_version\s*=\s*([0-9.]+)\s*$/) { print $1; exit }' gradle.properties)
           if [[ -z "${minecraft_version:-}" ]]; then
@@ -38,7 +55,25 @@ jobs:
           fi
           echo "minecraft_version=$minecraft_version" >> "$GITHUB_OUTPUT"
 
-          echo "Resolved version=$version, minecraft_version=$minecraft_version"
+          echo "Resolved new_version=$new_version, minecraft_version=$minecraft_version"
+
+      - name: Update gradle.properties
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i "s/^mod_version=.*/mod_version=${{ steps.get-variables.outputs.new_version }}/" gradle.properties
+
+      - name: Commit and tag new version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add gradle.properties
+          git commit -m "chore: bump version to ${{ steps.get-variables.outputs.new_version }}"
+          git tag "v${{ steps.get-variables.outputs.new_version }}"
+          git push origin "HEAD:${{ github.event.pull_request.base.ref }}"
+          git push origin "v${{ steps.get-variables.outputs.new_version }}"
 
       - name: Build
         run: bash gradlew build
@@ -73,13 +108,13 @@ jobs:
           echo "jar_path=${jars[0]}" >> "$GITHUB_OUTPUT"
           echo "Detected jar: ${jars[0]}"
 
-      - name: Release (create or update) and upload asset
+      - name: Release and upload asset
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }} - ${{ steps.get-variables.outputs.minecraft_version }}
+          tag_name: v${{ steps.get-variables.outputs.new_version }}
+          name: v${{ steps.get-variables.outputs.new_version }} - ${{ steps.get-variables.outputs.minecraft_version }}
           files: |
             ${{ steps.detect-jar.outputs.jar_path }}
           fail_on_unmatched_files: true
